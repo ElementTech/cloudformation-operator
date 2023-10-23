@@ -50,7 +50,6 @@ dockers:
     build_flag_templates:
       - "--pull"
       - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/elementtech/cloudformation-operator/main/README.md"
-      - "--label=io.artifacthub.package.logo-url=https://raw.githubusercontent.com/elementtech/cloudformation-operator/main/assets/logo/logo.png"
       - '--label=io.artifacthub.package.maintainers=[{"name":"Jatalocks","email":"amitai333@gmail.com"}]'
       - "--label=io.artifacthub.package.license=MIT"
       - "--label=org.opencontainers.image.description=A cloudformation operator"
