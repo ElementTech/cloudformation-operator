@@ -27,14 +27,16 @@ package main
 import (
 	"context"
 	"flag"
+
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
-	"github.com/spf13/pflag"
 	"os"
+
+	"github.com/spf13/pflag"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -179,7 +181,7 @@ func main() {
 	if err = (&controllers.StackReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("Stack"),
-		Recorder:			  mgr.GetEventRecorderFor("cloudformation-stack-controller")
+		Recorder:             mgr.GetEventRecorderFor("cloudformation-stack-controller"),
 		Scheme:               mgr.GetScheme(),
 		CloudFormation:       client,
 		StackFollower:        stackFollower,
