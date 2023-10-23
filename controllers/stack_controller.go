@@ -27,13 +27,16 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -57,6 +60,7 @@ type StackReconciler struct {
 	client.Client
 	Log                  logr.Logger
 	Scheme               *runtime.Scheme
+	Recorder             record.EventRecorder
 	CloudFormation       *cloudformation.Client
 	StackFollower        *StackFollower
 	CloudFormationHelper *CloudFormationHelper
@@ -163,6 +167,7 @@ func (r *StackReconciler) createStack(loop *StackLoop) error {
 	r.Log.WithValues("stack", loop.instance.Name).Info("creating stack")
 
 	if r.DryRun {
+		r.Recorder.Event(loop.instance, "Normal", "SkippingCreatingStack", "skipping stack creation due to --dry-run flag")
 		r.Log.WithValues("stack", loop.instance.Name).Info("skipping stack creation")
 		return nil
 	}
@@ -180,6 +185,7 @@ func (r *StackReconciler) createStack(loop *StackLoop) error {
 	stackTags, err := r.stackTags(loop)
 	if err != nil {
 		r.Log.WithValues("stack", loop.instance.Name).Error(err, "error compiling tags")
+		r.Recorder.Event(loop.instance, "Warning", "ErrorCompilingTags", fmt.Sprint(err))
 		return err
 	}
 
@@ -193,19 +199,21 @@ func (r *StackReconciler) createStack(loop *StackLoop) error {
 
 	output, err := r.CloudFormation.CreateStack(loop.ctx, input)
 	if err != nil {
+		r.Recorder.Event(loop.instance, "Warning", "ErrorCreatingStack", fmt.Sprint(err))
 		return err
 	}
 	loop.instance.Status.StackID = *output.StackId
-
+	r.Recorder.Event(loop.instance, "Normal", "Created", fmt.Sprintf("Created stack %s in namespace %s", loop.instance.Name, loop.instance.Namespace))
 	r.StackFollower.SubmissionChannel <- loop.instance
 	return nil
 }
 
 func (r *StackReconciler) updateStack(loop *StackLoop) error {
 	r.Log.WithValues("stack", loop.instance.Name).Info("updating stack")
-
+	r.Recorder.Event(loop.instance, "Normal", "Updating", fmt.Sprintf("Updating stack %s in namespace %s", loop.instance.Name, loop.instance.Namespace))
 	if r.DryRun {
 		r.Log.WithValues("stack", loop.instance.Name).Info("skipping stack update")
+		r.Recorder.Event(loop.instance, "Normal", "Skipping", "skipping stack update due to --dry-run flag")
 		return nil
 	}
 
@@ -222,6 +230,7 @@ func (r *StackReconciler) updateStack(loop *StackLoop) error {
 	stackTags, err := r.stackTags(loop)
 	if err != nil {
 		r.Log.WithValues("stack", loop.instance.Name).Error(err, "error compiling tags")
+		r.Recorder.Event(loop.instance, "Warning", "ErrorCompilingTags", "error compiling tags")
 		return err
 	}
 
@@ -235,21 +244,25 @@ func (r *StackReconciler) updateStack(loop *StackLoop) error {
 
 	if _, err := r.CloudFormation.UpdateStack(loop.ctx, input); err != nil {
 		if strings.Contains(err.Error(), "No updates are to be performed.") {
+			r.Recorder.Event(loop.instance, "Normal", "SkippingUpdate", "stack already updated")
 			r.Log.WithValues("stack", loop.instance.Name).Info("stack already updated")
 			return nil
 		}
+		r.Recorder.Event(loop.instance, "Warning", "ErrorUpdatingStack", fmt.Sprint(err))
 		return err
 	}
-
+	r.Recorder.Event(loop.instance, "Normal", "Updated", "Stack Updated Successfully")
 	r.StackFollower.SubmissionChannel <- loop.instance
 	return nil
 }
 
 func (r *StackReconciler) deleteStack(loop *StackLoop) error {
 	r.Log.WithValues("stack", loop.instance.Name).Info("deleting stack")
+	r.Recorder.Event(loop.instance, "Normal", "Deleting", "deleting stack")
 
 	if r.DryRun {
 		r.Log.WithValues("stack", loop.instance.Name).Info("skipping stack deletion")
+		r.Recorder.Event(loop.instance, "Normal", "Skipping", "skipping stack deletion due to --dry-run flag")
 		return nil
 	}
 
@@ -268,9 +281,10 @@ func (r *StackReconciler) deleteStack(loop *StackLoop) error {
 	}
 
 	if _, err := r.CloudFormation.DeleteStack(loop.ctx, input); err != nil {
+		r.Recorder.Event(loop.instance, "Warning", "ErrorDeletingStack", fmt.Sprint(err))
 		return err
 	}
-
+	r.Recorder.Event(loop.instance, "Normal", "Deleted", "Stack Deleted Successfully")
 	r.StackFollower.SubmissionChannel <- loop.instance
 	return nil
 }
@@ -284,8 +298,10 @@ func (r *StackReconciler) getStack(loop *StackLoop, noCache bool) (*cfTypes.Stac
 		loop.stack, err = r.CloudFormationHelper.GetStack(loop.ctx, loop.instance)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") {
+				r.Recorder.Event(loop.instance, "Warning", "ErrorStackDoesNotExist", fmt.Sprint(ErrStackNotFound))
 				return nil, ErrStackNotFound
 			}
+			r.Recorder.Event(loop.instance, "Warning", "ErrorStackNotFound", fmt.Sprint(err))
 			return nil, err
 		}
 	}

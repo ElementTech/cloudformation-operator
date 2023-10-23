@@ -179,6 +179,7 @@ func main() {
 	if err = (&controllers.StackReconciler{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("controllers").WithName("Stack"),
+		Recorder:			  mgr.GetEventRecorderFor("cloudformation-stack-controller")
 		Scheme:               mgr.GetScheme(),
 		CloudFormation:       client,
 		StackFollower:        stackFollower,

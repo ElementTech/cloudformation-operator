@@ -27,15 +27,16 @@ package controllers
 
 import (
 	"context"
+	"reflect"
+	"sync"
+	"time"
+
 	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/go-logr/logr"
 	cloudformationv1alpha1 "github.com/linki/cloudformation-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sync"
-	"time"
 )
 
 // StackFollower ensures a Stack object is monitored until it reaches a terminal state
