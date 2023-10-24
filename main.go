@@ -51,6 +51,7 @@ import (
 
 	cloudformationv1alpha1 "github.com/linki/cloudformation-operator/api/v1alpha1"
 	"github.com/linki/cloudformation-operator/controllers"
+	cloudformation_services_k8s_aws "github.com/linki/cloudformation-operator/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -169,6 +170,19 @@ func main() {
 		CloudFormation: client,
 	}
 
+	channelHub := &cloudformation_services_k8s_aws.ChannelHub{
+		MappingChannel: make(chan *cloudformationv1alpha1.Stack),
+		FollowChannel:  make(chan *cloudformationv1alpha1.Stack),
+	}
+
+	mapWriter := &cloudformation_services_k8s_aws.MapWriter{
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("workers").WithName("MapWriter"),
+		ChannelHub: *channelHub,
+		Scheme:     mgr.GetScheme(),
+	}
+	go mapWriter.Worker()
+
 	stackFollower := &controllers.StackFollower{
 		Client:               mgr.GetClient(),
 		Log:                  ctrl.Log.WithName("workers").WithName("Stack"),
@@ -184,6 +198,7 @@ func main() {
 		Recorder:             mgr.GetEventRecorderFor("cloudformation-stack-controller"),
 		Scheme:               mgr.GetScheme(),
 		CloudFormation:       client,
+		ChannelHub:           *channelHub,
 		StackFollower:        stackFollower,
 		CloudFormationHelper: cfHelper,
 		DefaultTags:          defaultTags,

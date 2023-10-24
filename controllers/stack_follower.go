@@ -42,6 +42,7 @@ import (
 // StackFollower ensures a Stack object is monitored until it reaches a terminal state
 type StackFollower struct {
 	client.Client
+	ChannelHub
 	Log                  logr.Logger
 	CloudFormationHelper *CloudFormationHelper
 	SubmissionChannel    chan *cloudformationv1alpha1.Stack
@@ -156,10 +157,9 @@ func (f *StackFollower) UpdateStackStatus(ctx context.Context, instance *cloudfo
 }
 
 func (f *StackFollower) processStack(key interface{}, value interface{}) bool {
-
+	// f.ChannelHub.MappingChannel <- stack
 	stackId := key.(string)
 	stack := value.(*cloudformationv1alpha1.Stack)
-
 	cfs, err := f.CloudFormationHelper.GetStack(context.TODO(), stack)
 	if err != nil {
 		if err == ErrStackNotFound {
@@ -172,6 +172,7 @@ func (f *StackFollower) processStack(key interface{}, value interface{}) bool {
 		// Have to remove the lock on the last pass, so the reconciler can catch it on the next loop.
 		if f.CloudFormationHelper.StackInTerminalState(cfs.StackStatus) {
 			f.stopFollowing(stackId)
+			f.ChannelHub.MappingChannel <- stack
 		}
 		err = f.UpdateStackStatus(context.TODO(), stack, cfs)
 		if err != nil {

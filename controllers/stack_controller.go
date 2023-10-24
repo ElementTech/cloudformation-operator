@@ -58,6 +58,7 @@ const (
 // StackReconciler reconciles a Stack object
 type StackReconciler struct {
 	client.Client
+	ChannelHub
 	Log                  logr.Logger
 	Scheme               *runtime.Scheme
 	Recorder             record.EventRecorder
@@ -89,6 +90,7 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	_ = r.Log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	loop := &StackLoop{ctx, req, &cloudformationv1alpha1.Stack{}, nil}
+	r.ChannelHub.MappingChannel <- loop.instance
 
 	// Fetch the Stack instance
 	err := r.Client.Get(loop.ctx, loop.req.NamespacedName, loop.instance)

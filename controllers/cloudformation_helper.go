@@ -28,11 +28,12 @@ package controllers
 import (
 	"context"
 	coreerrors "errors"
+	"strings"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	cloudformationv1alpha1 "github.com/linki/cloudformation-operator/api/v1alpha1"
-	"strings"
 )
 
 var (
