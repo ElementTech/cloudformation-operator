@@ -146,7 +146,8 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	exists, err := r.stackExists(loop)
 	if err != nil {
-		return reconcile.Result{}, err
+		return ctrl.Result{}, r.createStack(loop)
+		// return reconcile.Result{}, err
 	}
 
 	if exists {
@@ -155,6 +156,7 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		// IN_PROGRESS cases.
 		if !r.CloudFormationHelper.StackInTerminalState(loop.stack.StackStatus) {
 			r.StackFollower.SubmissionChannel <- loop.instance
+			r.ChannelHub.MappingChannel <- loop.instance
 			return ctrl.Result{}, nil
 		}
 
@@ -303,6 +305,7 @@ func (r *StackReconciler) getStack(loop *StackLoop, noCache bool) (*cfTypes.Stac
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") {
 				r.Recorder.Event(loop.instance, "Warning", "ErrorStackDoesNotExist", fmt.Sprint(ErrStackNotFound))
+
 				return nil, ErrStackNotFound
 			}
 			r.Recorder.Event(loop.instance, "Warning", "ErrorStackNotFound", fmt.Sprint(err))

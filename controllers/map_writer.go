@@ -93,7 +93,7 @@ func (w *MapWriter) Worker() {
 			// Setting the owner reference
 			err = controllerutil.SetControllerReference(toBeMapped, m, w.Scheme)
 			if err != nil {
-				w.Log.Error(err, "Unable to set controller owner.", "Namespace", toBeMapped.Namespace, "Name", m.Name, "Stack ID", toBeMapped.Status.StackID)
+				w.Log.Info(err.Error(), "Unable to set controller owner.", "Namespace", toBeMapped.Namespace, "Name", m.Name, "Stack ID", toBeMapped.Status.StackID)
 			} else {
 				if created {
 					err = w.Client.Create(context.TODO(), m)
@@ -103,7 +103,7 @@ func (w *MapWriter) Worker() {
 			}
 
 			if err != nil {
-				w.Log.Error(err, "Failed to create or update map.", "Namespace", toBeMapped.Namespace, "Name", m.Name, "Stack ID", toBeMapped.Status.StackID)
+				w.Log.Info(err.Error(), "Failed to create or update map.", "Namespace", toBeMapped.Namespace, "Name", m.Name, "Stack ID", toBeMapped.Status.StackID)
 			} else {
 				w.Log.Info("Map written", "Namespace", toBeMapped.Namespace, "Name", m.Name, "Stack ID", toBeMapped.Status.StackID)
 			}
