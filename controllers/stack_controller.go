@@ -145,11 +145,12 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	exists, err := r.stackExists(loop)
-	if err != nil {
-		return ctrl.Result{}, r.createStack(loop)
-		// return reconcile.Result{}, err
+	if !exists {
+		return reconcile.Result{}, r.createStack(loop)
 	}
-
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	if exists {
 		// If the stack is in progress but not being followed, follow it to catch updates
 		// If it is being followed, we want the same thing, just send it over to the other thread to check it in all
@@ -167,6 +168,7 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 }
 
 func (r *StackReconciler) createStack(loop *StackLoop) error {
+	// exists, _ := r.stackExists(loop)
 	r.Log.WithValues("stack", loop.instance.Name).Info("creating stack")
 
 	if r.DryRun {
@@ -201,6 +203,7 @@ func (r *StackReconciler) createStack(loop *StackLoop) error {
 	}
 
 	output, err := r.CloudFormation.CreateStack(loop.ctx, input)
+
 	if err != nil {
 		r.Recorder.Event(loop.instance, "Warning", "ErrorCreatingStack", fmt.Sprint(err))
 		return err
@@ -303,11 +306,6 @@ func (r *StackReconciler) getStack(loop *StackLoop, noCache bool) (*cfTypes.Stac
 		// Must use the stack ID to get details/finalization for deleted stacks
 		loop.stack, err = r.CloudFormationHelper.GetStack(loop.ctx, loop.instance)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") {
-				r.Recorder.Event(loop.instance, "Warning", "ErrorStackDoesNotExist", fmt.Sprint(ErrStackNotFound))
-
-				return nil, ErrStackNotFound
-			}
 			r.Recorder.Event(loop.instance, "Warning", "ErrorStackNotFound", fmt.Sprint(err))
 			return nil, err
 		}
