@@ -164,14 +164,14 @@ func (f *StackFollower) processStack(key interface{}, value interface{}) bool {
 	if err != nil {
 		if err == ErrStackNotFound {
 			f.Log.Error(err, "Stack Not Found", "UID", stack.UID, "Stack ID", stackId)
-			f.stopFollowing(stackId)
+			// f.stopFollowing(stackId)
 		} else {
 			f.Log.Error(err, "Error retrieving stack for processing", "UID", stack.UID, "Stack ID", stackId)
 		}
 	} else {
 		// Have to remove the lock on the last pass, so the reconciler can catch it on the next loop.
 		if f.CloudFormationHelper.StackInTerminalState(cfs.StackStatus) {
-			f.stopFollowing(stackId)
+			// f.stopFollowing(stackId)
 			f.ChannelHub.MappingChannel <- stack
 		}
 		err = f.UpdateStackStatus(context.TODO(), stack, cfs)

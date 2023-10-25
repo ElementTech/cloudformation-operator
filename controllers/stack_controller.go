@@ -90,7 +90,6 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	_ = r.Log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	loop := &StackLoop{ctx, req, &cloudformationv1alpha1.Stack{}, nil}
-	r.ChannelHub.MappingChannel <- loop.instance
 
 	// Fetch the Stack instance
 	err := r.Client.Get(loop.ctx, loop.req.NamespacedName, loop.instance)
@@ -211,8 +210,8 @@ func (r *StackReconciler) createStack(loop *StackLoop) error {
 }
 
 func (r *StackReconciler) updateStack(loop *StackLoop) error {
-	r.Log.WithValues("stack", loop.instance.Name).Info("updating stack")
-	r.Recorder.Event(loop.instance, "Normal", "Updating", fmt.Sprintf("Updating stack %s in namespace %s", loop.instance.Name, loop.instance.Namespace))
+	r.Log.WithValues("stack", loop.instance.Name).Info("trying to update stack")
+	r.Recorder.Event(loop.instance, "Normal", "Updating", fmt.Sprintf("Trying to update stack %s in namespace %s", loop.instance.Name, loop.instance.Namespace))
 	if r.DryRun {
 		r.Log.WithValues("stack", loop.instance.Name).Info("skipping stack update")
 		r.Recorder.Event(loop.instance, "Normal", "Skipping", "skipping stack update due to --dry-run flag")
@@ -221,7 +220,8 @@ func (r *StackReconciler) updateStack(loop *StackLoop) error {
 
 	hasOwnership, err := r.hasOwnership(loop)
 	if err != nil {
-		return err
+		controllerutil.SetOwnerReference(loop.instance, loop.instance, r.Scheme)
+		// return err
 	}
 
 	if !hasOwnership {
@@ -243,6 +243,7 @@ func (r *StackReconciler) updateStack(loop *StackLoop) error {
 		Parameters:   r.stackParameters(loop),
 		Tags:         stackTags,
 	}
+	r.ChannelHub.MappingChannel <- loop.instance
 
 	if _, err := r.CloudFormation.UpdateStack(loop.ctx, input); err != nil {
 		if strings.Contains(err.Error(), "No updates are to be performed.") {
@@ -251,6 +252,7 @@ func (r *StackReconciler) updateStack(loop *StackLoop) error {
 			return nil
 		}
 		r.Recorder.Event(loop.instance, "Warning", "ErrorUpdatingStack", fmt.Sprint(err))
+		r.deleteStack(loop)
 		return err
 	}
 	r.Recorder.Event(loop.instance, "Normal", "Updated", "Stack Updated Successfully")
