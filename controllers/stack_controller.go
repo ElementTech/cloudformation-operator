@@ -29,6 +29,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -124,14 +125,30 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 				}
 				r.Log.Info("Successfully finalized stack")
 			} else {
-				// Run finalization logic for stacksFinalizer. If the
-				// finalization logic fails, don't remove the finalizer so
-				// that we can retry during the next reconciliation.
-				err := r.deleteStack(loop)
+				done := make(chan error)
+				go func() {
+					err := r.deleteStack(loop)
+					done <- err
+				}()
+
+				select {
+				case err := <-done:
+					if err != nil {
+						r.Log.Error(err, "Failed to delete stack")
+						return ctrl.Result{}, err
+					}
+				case <-time.After(15 * time.Second):
+					// finalizer deletion forced after failing for 15 seconds
+					r.Log.Info("Finalization logic timed out, forcing finalizer removal")
+				}
+				controllerutil.RemoveFinalizer(loop.instance, stacksFinalizer)
+				controllerutil.RemoveFinalizer(loop.instance, legacyFinalizer)
+				err := r.Update(loop.ctx, loop.instance)
 				if err != nil {
-					r.Log.Error(err, "Failed to delete stack")
+					r.Log.Error(err, "Failed to update stack to drop finalizer")
 					return ctrl.Result{}, err
 				}
+				r.Log.Info("Successfully finalized stack, or timeout occurred")
 			}
 		}
 		return ctrl.Result{}, nil
